@@ -23,11 +23,9 @@ from typing import (
 )
 from urllib.parse import ParseResult
 
-from pydantic import BaseModel
-
 from datamodel_code_generator import Protocol, runtime_checkable
 from datamodel_code_generator.format import CodeFormatter, PythonVersion
-from datamodel_code_generator.imports import IMPORT_ANNOTATIONS, Import, Imports
+from datamodel_code_generator.imports import IMPORT_ANNOTATIONS, IMPORT_JSONWIZARD, Import, Imports
 from datamodel_code_generator.model import pydantic as pydantic_model
 from datamodel_code_generator.model.base import (
     ALL_MODEL,
@@ -41,6 +39,7 @@ from datamodel_code_generator.model.enum import Enum, Member
 from datamodel_code_generator.parser import DefaultPutDict, LiteralType
 from datamodel_code_generator.reference import ModelResolver, Reference
 from datamodel_code_generator.types import DataType, DataTypeManager, StrictTypes
+from pydantic import BaseModel
 
 escape_characters = str.maketrans(
     {
@@ -963,6 +962,7 @@ class Parser(ABC):
         if with_import:
             if self.target_python_version != PythonVersion.PY_36:
                 self.imports.append(IMPORT_ANNOTATIONS)
+        self.imports.append(IMPORT_JSONWIZARD)
 
         if format_:
             code_formatter: Optional[CodeFormatter] = CodeFormatter(

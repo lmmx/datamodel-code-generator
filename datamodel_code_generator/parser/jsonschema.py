@@ -27,8 +27,6 @@ from typing import (
 from urllib.parse import ParseResult
 from warnings import warn
 
-from pydantic import BaseModel, Field, root_validator, validator
-
 from datamodel_code_generator import (
     InvalidClassNameError,
     cached_property,
@@ -57,6 +55,7 @@ from datamodel_code_generator.types import (
     Types,
     UnionIntFloat,
 )
+from pydantic import BaseModel, Field, root_validator, validator
 
 
 def get_model_by_path(
