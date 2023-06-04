@@ -537,6 +537,8 @@ class Parser(ABC):
         """
         model_class_names: Dict[str, DataModel] = {}
         for model in models[:]:
+            # if model.name == "HTTPSecurityScheme1":
+            #     breakpoint()
             nonnull_ref_bases = [
                 b for b in model.base_classes if b.reference is not None
             ]
@@ -551,6 +553,20 @@ class Parser(ABC):
                     models.remove(base_model)
                     # Drop base class so it doesn't get used as base (and imported)
                     model.base_classes.remove(base_cls)
+                    # Add JSONWizard as a new base class so it does get used as base
+                    try:
+                        premade_base_model = next(
+                            m
+                            for m in models
+                            if m.base_class == "JSONWizard"
+                            if not isinstance(m.fields[0].parent, RootModel)
+                        )
+                        premade_base_class = premade_base_model.base_classes[0]
+                        model.base_classes.append(premade_base_class)
+                    except:
+                        raise NotImplementedError(
+                            "Awkward: only model subclasses, make a base plz"
+                        )
                     # Insert the fields into the current model's fields
                     for base_field in base_model.fields:
                         # Don't insert if field name already there: first assignment

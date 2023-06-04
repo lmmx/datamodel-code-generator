@@ -15,6 +15,17 @@ class {{ class_name }}:
 {%- if not fields and not description %}
     pass
 {%- endif %}
+{%- if base_class == "JSONWizard" %}
+{%- if not fields and not description %}
+    
+    class Meta(JSONWizard.Meta):
+        recursive_classes = True
+{%- else %}
+    class Meta(JSONWizard.Meta):
+        recursive_classes = True
+    
+{%- endif %}
+{%- endif %}
 {%- for field in fields -%}
     {%- if field.field %}
     {{ field.name }}: {{ field.type_hint }} = {{ field.field }}
