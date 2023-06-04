@@ -25,7 +25,11 @@ from urllib.parse import ParseResult
 
 from datamodel_code_generator import Protocol, runtime_checkable
 from datamodel_code_generator.format import CodeFormatter, PythonVersion
-from datamodel_code_generator.imports import IMPORT_ANNOTATIONS, IMPORT_JSONWIZARD, Import, Imports
+from datamodel_code_generator.imports import (
+    IMPORT_ANNOTATIONS,
+    Import,
+    Imports,
+)
 from datamodel_code_generator.model import pydantic as pydantic_model
 from datamodel_code_generator.model.base import (
     ALL_MODEL,
@@ -962,7 +966,6 @@ class Parser(ABC):
         if with_import:
             if self.target_python_version != PythonVersion.PY_36:
                 self.imports.append(IMPORT_ANNOTATIONS)
-        self.imports.append(IMPORT_JSONWIZARD)
 
         if format_:
             code_formatter: Optional[CodeFormatter] = CodeFormatter(
@@ -997,6 +1000,10 @@ class Parser(ABC):
         for module, models in (
             (k, [*v]) for k, v in grouped_models
         ):  # type: Tuple[str, ...], List[DataModel]
+            # for model in models:
+            #     if model.class_name == "HTTPSecurityScheme1":
+            #         breakpoint()
+
             for model in models:
                 model_to_models[model] = models
             self.__delete_duplicate_models(models)
@@ -1040,6 +1047,10 @@ class Parser(ABC):
 
             imports = Imports()
             scoped_model_resolver = ModelResolver()
+
+            # for model in models:
+            #     if model.class_name == "HTTPSecurityScheme1":
+            #         breakpoint()
 
             self.__change_from_import(models, imports, scoped_model_resolver, init)
             self.__extract_inherited_enum(models)

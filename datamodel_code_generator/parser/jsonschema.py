@@ -668,6 +668,8 @@ class JsonSchemaParser(Parser):
             path=self.current_source_path,
             description=obj.description if self.use_schema_description else None,
         )
+        if "HTTPSec" in data_model_type.base_class:
+            breakpoint()
         self.results.append(data_model_type)
 
         return self.data_type(reference=reference)
