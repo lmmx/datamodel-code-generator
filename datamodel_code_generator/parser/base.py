@@ -25,11 +25,7 @@ from urllib.parse import ParseResult
 
 from datamodel_code_generator import Protocol, runtime_checkable
 from datamodel_code_generator.format import CodeFormatter, PythonVersion
-from datamodel_code_generator.imports import (
-    IMPORT_ANNOTATIONS,
-    Import,
-    Imports,
-)
+from datamodel_code_generator.imports import IMPORT_ANNOTATIONS, Import, Imports
 from datamodel_code_generator.model import pydantic as pydantic_model
 from datamodel_code_generator.model.base import (
     ALL_MODEL,
@@ -40,6 +36,7 @@ from datamodel_code_generator.model.base import (
     DataModelFieldBase,
 )
 from datamodel_code_generator.model.enum import Enum, Member
+from datamodel_code_generator.model.rootmodel import RootModel
 from datamodel_code_generator.parser import DefaultPutDict, LiteralType
 from datamodel_code_generator.reference import ModelResolver, Reference
 from datamodel_code_generator.types import DataType, DataTypeManager, StrictTypes
@@ -534,6 +531,39 @@ class Parser(ABC):
     def parse_raw(self) -> None:
         raise NotImplementedError
 
+    def __remove_model_inheritance(self, models: List[DataModel]) -> None:
+        """
+        A custom base class will not have a reference, however a base model will.
+        """
+        model_class_names: Dict[str, DataModel] = {}
+        for model in models[:]:
+            nonnull_ref_bases = [
+                b for b in model.base_classes if b.reference is not None
+            ]
+            nonnull_subref_bases = [
+                c for c in model.reference.children[:] if c.reference is not None
+            ]
+            parent_is_root = isinstance(model.fields[0].parent, RootModel)
+            # if ref_bases and not parent_is_root and "HTTPSec" in model.class_name:
+            if not parent_is_root and nonnull_ref_bases:
+                breakpoint()
+            if not parent_is_root and nonnull_subref_bases:
+                # The model can be its own base class reference 1+ times
+                # Any other name in the base class references will be an heir model
+                base_names = [
+                    b.reference.name
+                    for b in nonnull_subref_bases
+                    if b.reference.name != model.name
+                ]
+                if base_names:
+                    # When there are non-self ref base classes, they're the base classes
+                    # for other models. However this is the inverse of what we want!
+                    pass  # breakpoint()
+                # if model.class_name == "HTTPSecurityScheme1":
+                #     # Goal is to identify the subclass somehow
+                #     goal = "HTTPSecuritySchemeItem"
+                #     breakpoint()
+
     def __delete_duplicate_models(self, models: List[DataModel]) -> None:
         model_class_names: Dict[str, DataModel] = {}
         model_to_duplicate_models: DefaultDict[
@@ -1007,6 +1037,7 @@ class Parser(ABC):
             for model in models:
                 model_to_models[model] = models
             self.__delete_duplicate_models(models)
+            self.__remove_model_inheritance(models)
             self.__replace_duplicate_name_in_module(models)
             if len(previous_module) - len(module) > 1:
                 for parts in range(len(previous_module) - 1, len(module), -1):
