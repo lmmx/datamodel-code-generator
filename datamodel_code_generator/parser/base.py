@@ -540,29 +540,36 @@ class Parser(ABC):
             nonnull_ref_bases = [
                 b for b in model.base_classes if b.reference is not None
             ]
-            nonnull_subref_bases = [
-                c for c in model.reference.children[:] if c.reference is not None
-            ]
             parent_is_root = isinstance(model.fields[0].parent, RootModel)
             # if ref_bases and not parent_is_root and "HTTPSec" in model.class_name:
             if not parent_is_root and nonnull_ref_bases:
-                breakpoint()
-            if not parent_is_root and nonnull_subref_bases:
-                # The model can be its own base class reference 1+ times
-                # Any other name in the base class references will be an heir model
-                base_names = [
-                    b.reference.name
-                    for b in nonnull_subref_bases
-                    if b.reference.name != model.name
-                ]
-                if base_names:
-                    # When there are non-self ref base classes, they're the base classes
-                    # for other models. However this is the inverse of what we want!
-                    pass  # breakpoint()
-                # if model.class_name == "HTTPSecurityScheme1":
-                #     # Goal is to identify the subclass somehow
-                #     goal = "HTTPSecuritySchemeItem"
-                #     breakpoint()
+                for base_cls in nonnull_ref_bases[::-1]:
+                    base_ref = base_cls.reference
+                    base_cls_name = base_ref.name
+                    base_model = base_ref.source
+                    # Drop base model so it doesn't get generated
+                    models.remove(base_model)
+                    # Drop base class so it doesn't get used as base (and imported)
+                    model.base_classes.remove(base_cls)
+                    # Insert the fields into the current model's fields
+                    for base_field in base_model.fields:
+                        # Don't insert if field name already there: first assignment
+                        # takes priority (we proceed forward through the base classes,
+                        # leftmost base class supersedes any further rightward so simply
+                        # never reassign a field name: unsure if Union would be better?)
+                        if base_field.name in [f.name for f in model.fields]:
+                            continue
+                        if base_field.required:
+                            # Get indices of required fields
+                            req_idxs = [
+                                i for i, f in enumerate(model.fields) if f.required
+                            ]
+                            # Insert after last required field, or at start if not any
+                            insert_pos = req_idxs[-1] if req_idxs else 0
+                        else:
+                            # Insert at end (will always be after last optional field)
+                            insert_pos = len(model.fields)
+                        model.fields.insert(insert_pos, base_field)
 
     def __delete_duplicate_models(self, models: List[DataModel]) -> None:
         model_class_names: Dict[str, DataModel] = {}
