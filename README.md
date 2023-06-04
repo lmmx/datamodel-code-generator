@@ -1,3 +1,35 @@
+## **FORK**
+
+Forked by Louis Maddox on 4th June 2023 to support `dataclass_wizard.JSONWizard` usage.
+
+The models produced with the following call:
+
+```sh
+datamodel-codegen --input data/openapi/v3.0/schema.yaml \
+                  --output generated/openapi_v3_yaml.py \
+                  --output-model-type dataclasses.dataclass \
+                  --base-class dataclass_wizard.JSONWizard
+```
+
+give models of the format:
+
+```py
+@dataclass
+class Contact(JSONWizard):
+    class Meta(JSONWizard.Meta):
+        recursive_classes = True
+
+    name: Optional[str] = None
+    url: Optional[str] = None
+    email: Optional[str] = None
+```
+
+These models deliberately do not use inheritance, as this is incompatible with dataclasses,
+and led to nonsensical definitions when I used it on the OpenAPI schema itself (for example
+`HTTPSecurityScheme1` inherited from a model which redefined the `scheme` key).
+
+---
+
 # datamodel-code-generator
 
 This code generator creates [pydantic](https://docs.pydantic.dev/) model, [dataclasses.dataclass](https://docs.python.org/3/library/dataclasses.html) and [typing.TypedDict](https://docs.python.org/3/library/typing.html#typing.TypedDict) from an openapi file and others.
