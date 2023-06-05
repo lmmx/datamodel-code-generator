@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import enum as _enum
+import re
 from collections import defaultdict
 from contextlib import contextmanager
 from functools import lru_cache
@@ -668,8 +669,6 @@ class JsonSchemaParser(Parser):
             path=self.current_source_path,
             description=obj.description if self.use_schema_description else None,
         )
-        # if "HTTPSec" in data_model_type.base_class:
-        #     breakpoint()
         self.results.append(data_model_type)
 
         return self.data_type(reference=reference)
@@ -857,6 +856,9 @@ class JsonSchemaParser(Parser):
         singular_name: bool = False,
         unique: bool = True,
     ) -> DataType:
+        # if obj.properties is None:
+        #     breakpoint()
+        # TODO set properties on the object if none
         if not unique:  # pragma: no cover
             warn(
                 f'{self.__class__.__name__}.parse_object() ignore `unique` argument.'
@@ -1170,6 +1172,8 @@ class JsonSchemaParser(Parser):
         obj: JsonSchemaObject,
         path: List[str],
     ) -> DataType:
+        # if name == "Reference":
+        #     breakpoint()
         if obj.ref:
             data_type: DataType = self.get_ref_data_type(obj.ref)
         elif obj.custom_type_path:
@@ -1217,29 +1221,55 @@ class JsonSchemaParser(Parser):
         reference = self.model_resolver.add(path, name, loaded=True, class_name=True)
         self.set_title(name, obj)
         self.set_additional_properties(name, obj)
+        # When you pass in the obj.patternProperties and they have a `type` of "str"
+        # then that's the cue to annotate the `required` list with type `str`
+        # Assume there's only one required field, since field name is a singleton
+        # TODO: commented out to continue debugging original implementation
+        # if not obj.required:
+        # This isn't right: I want a field
+        # Typically it goes parse_raw_obj ->  parse_obj -> parse_object(name, obj, path)
+        # So I think if there are `required` fields then override the route to parse_root_type
+        # and maybe form an artificial `obj.properties` from the required fields to
+        # mimic the example below (I guess it was implemented wrongly: or was it in
+        # wrong order? should we simply check obj.properties before the
+        # patternProperties? or should we check both obj.required and
+        # obj.patternProperties to lead down this route?):
+        # > /home/louis/dev/datamodel-code-generator/datamodel_code_generator/parser/jsonschema.py(1547)parse_obj()                                                                -> elif obj.properties:                                                                                                                                                  (Pdb)
+        # > /home/louis/dev/datamodel-code-generator/datamodel_code_generator/parser/jsonschema.py(1548)parse_obj()                                                                -> self.parse_object(name, obj, path)
+        # For example for class Info in openapi v3:
+        # (Pdb) pp obj.properties
+        # {'contact': JsonSchemaObject(items=None, uniqueItems=None, type=None, format=None, pattern=None, minLength=None, maxLength=None, minimum=None, maximum=None, minItems=None, maxItems=None, multipleOf=None, exclusiveMaximum=None, exclusiveMinimum=None, additionalProperties=None, patternProperties=None, oneOf=[], anyOf=[], allOf=[], enum=[], writeOnly=None, properties=None, required=[], ref='#/definitions/Contact', nullable=False, x_enum_varnames=[], description=None, title=None, example=None, examples=None, default=None, id=None, custom_type_path=None, extras={}, discriminator=None),
+        #  'description': JsonSchemaObject(items=None, uniqueItems=None, type='string', format=None, pattern=None, minLength=None, maxLength=None, minimum=None, maximum=None, minItems=None, maxItems=None, multipleOf=None, exclusiveMaximum=None, exclusiveMinimum=None, additionalProperties=None, patternProperties=None, oneOf=[], anyOf=[], allOf=[], enum=[], writeOnly=None, properties=None, required=[], ref=None, nullable=False, x_enum_varnames=[], description=None, title=None, example=None, examples=None, default=None, id=None, custom_type_path=None, extras={}, discriminator=None),
+        #  'license': JsonSchemaObject(items=None, uniqueItems=None, type=None, format=None, pattern=None, minLength=None, maxLength=None, minimum=None, maximum=None, minItems=None, maxItems=None, multipleOf=None, exclusiveMaximum=None, exclusiveMinimum=None, additionalProperties=None, patternProperties=None, oneOf=[], anyOf=[], allOf=[], enum=[], writeOnly=None, properties=None, required=[], ref='#/definitions/License', nullable=False, x_enum_varnames=[], description=None, title=None, example=None, examples=None, default=None, id=None, custom_type_path=None, extras={}, discriminator=None),
+        #  'termsOfService': JsonSchemaObject(items=None, uniqueItems=None, type='string', format='uri-reference', pattern=None, minLength=None, maxLength=None, minimum=None, maximum=None, minItems=None, maxItems=None, multipleOf=None, exclusiveMaximum=None, exclusiveMinimum=None, additionalProperties=None, patternProperties=None, oneOf=[], anyOf=[], allOf=[], enum=[], writeOnly=None, properties=None, required=[], ref=None, nullable=False, x_enum_varnames=[], description=None, title=None, example=None, examples=None, default=None, id=None, custom_type_path=None, extras={}, discriminator=None),
+        #  'title': JsonSchemaObject(items=None, uniqueItems=None, type='string', format=None, pattern=None, minLength=None, maxLength=None, minimum=None, maximum=None, minItems=None, maxItems=None, multipleOf=None, exclusiveMaximum=None, exclusiveMinimum=None, additionalProperties=None, patternProperties=None, oneOf=[], anyOf=[], allOf=[], enum=[], writeOnly=None, properties=None, required=[], ref=None, nullable=False, x_enum_varnames=[], description=None, title=None, example=None, examples=None, default=None, id=None, custom_type_path=None, extras={}, discriminator=None),
+        #  'version': JsonSchemaObject(items=None, uniqueItems=None, type='string', format=None, pattern=None, minLength=None, maxLength=None, minimum=None, maximum=None, minItems=None, maxItems=None, multipleOf=None, exclusiveMaximum=None, exclusiveMinimum=None, additionalProperties=None, patternProperties=None, oneOf=[], anyOf=[], allOf=[], enum=[], writeOnly=None, properties=None, required=[], ref=None, nullable=False, x_enum_varnames=[], description=None, title=None, example=None, examples=None, default=None, id=None, custom_type_path=None, extras={}, discriminator=None)}
+        data_model_field_type = self.data_model_field_type(
+            data_type=data_type,
+            default=obj.default,
+            required=required,
+            constraints=obj.dict() if self.field_constraints else {},
+            nullable=obj.nullable if self.strict_nullable else None,
+            strip_default_none=self.strip_default_none,
+            extras=self.get_field_extras(obj),
+            use_annotated=self.use_annotated,
+            use_field_description=self.use_field_description,
+            original_name=None,
+            has_default=obj.has_default,
+        )
+        # Ensure that the `data_model_field_type` has the `required` field
+        # if name == "Reference":
         data_model_root_type = self.data_model_root_type(
             reference=reference,
-            fields=[
-                self.data_model_field_type(
-                    data_type=data_type,
-                    default=obj.default,
-                    required=required,
-                    constraints=obj.dict() if self.field_constraints else {},
-                    nullable=obj.nullable if self.strict_nullable else None,
-                    strip_default_none=self.strip_default_none,
-                    extras=self.get_field_extras(obj),
-                    use_annotated=self.use_annotated,
-                    use_field_description=self.use_field_description,
-                    original_name=None,
-                    has_default=obj.has_default,
-                )
-            ],
+            fields=[data_model_field_type],
             custom_base_class=self.base_class,
             custom_template_dir=self.custom_template_dir,
             extra_template_data=self.extra_template_data,
             path=self.current_source_path,
             nullable=obj.type_has_null,
         )
+        # if obj.required:
+        #     breakpoint()
         self.results.append(data_model_root_type)
         return self.data_type(reference=reference)
 
@@ -1508,6 +1538,8 @@ class JsonSchemaParser(Parser):
         obj: JsonSchemaObject,
         path: List[str],
     ) -> None:
+        # if name == "Reference":
+        #     breakpoint()
         if obj.is_array:
             self.parse_array(name, obj, path)
         elif obj.allOf:
@@ -1516,7 +1548,32 @@ class JsonSchemaParser(Parser):
             data_type = self.parse_root_type(name, obj, path)
             if isinstance(data_type, EmptyDataType) and obj.properties:
                 self.parse_object(name, obj, path)
+        elif obj.properties is None and obj.patternProperties and obj.required:
+            # Sometimes the properties are implicit in patternProperties and required
+            # Base route on if any obj.required match any of patterns in which case
+            # there are fields (parse_object), otherwise no fields (parse_root_type)
+            obj.properties = {
+                key: pattern_schema_obj
+                for pattern, pattern_schema_obj in obj.patternProperties.items()
+                for key in obj.required
+                if re.match(pattern, key)
+            }
+            # breakpoint()
+            #     # Make an artificial obj.properties with field name dict
+            # (Pdb) p obj.properties["termsOfService"] # Info model
+            # JsonSchemaObject(items=None, uniqueItems=None, type='string',
+            #         format='uri-reference', pattern=None, minLength=None, maxLength=None,
+            #         minimum=None, maximum=None, minItems=None, maxItems=None,
+            #         multipleOf=None, exclusiveMaximum=None, exclusiveMinimum=None,
+            #         additionalProperties=None, patternProperties=None, oneOf=[], anyOf=[],
+            #         allOf=[], enum=[], writeOnly=None, properties=None, required=[],
+            #         ref=None, nullable=False, x_enum_varnames=[], description=None,
+            #         title=None, example=None, examples=None, default=None, id=None,
+            #         custom_type_path=None, extras={}, discriminator=None)
+            self.parse_object(name, obj, path)
+            #     # self.parse_root_type(name, obj, path)
         elif obj.properties:
+            # breakpoint()
             self.parse_object(name, obj, path)
         elif obj.patternProperties:
             self.parse_root_type(name, obj, path)
